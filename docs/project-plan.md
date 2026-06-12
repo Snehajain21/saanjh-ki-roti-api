@@ -29,6 +29,7 @@ The system should provide role-based access for administrators, delivery personn
 ### Secondary Goals
 
 * Store customer identity documents securely.
+
 * Enable customer self-service actions.
 * Improve route-based delivery management.
 * Support referral and discount programs.
@@ -766,51 +767,714 @@ Expected Handling:
 
 ---
 
-## 11. Development Phases
+# 11. Implementation Plan
 
-### Phase 1: Foundation
+## 11.1 Proposed Folder Structure
 
-* Project setup
-* Authentication system
-* User management
-* Customer management
-
-### Phase 2: Subscription System
-
-* Plans
-* Subscriptions
-* Pause management
-* Add-on management
-
-### Phase 3: Delivery Operations
-
-* Routes
-* Delivery assignment
-* Delivery status tracking
-* Retry handling
-
-### Phase 4: Billing and Complaints
-
-* Invoice generation
-* Payment tracking
-* Referral management
-* Complaint management
-
-### Phase 5: Reporting and Dashboard
-
-* Dashboard statistics
-* Monthly reporting
-* PDF generation
-* Analytics
-
-### Phase 6: Customer Self-Service
-
-* Customer portal APIs
-* Pause requests
-* Complaint submission
-* Bill viewing
+```text
+app/
+│
+├── main.py
+│
+├── core/
+│   ├── config.py
+│   ├── database.py
+│   └── security.py
+│
+├── models/
+│   ├── user.py
+│   ├── customer.py
+│   ├── plan.py
+│   ├── subscription.py
+│   ├── route.py
+│   ├── delivery.py
+│   ├── payment.py
+│   ├── complaint.py
+│   ├── referral.py
+│   └── document.py
+│
+├── schemas/
+│   ├── customer.py
+│   ├── plan.py
+│   ├── subscription.py
+│   ├── delivery.py
+│   ├── payment.py
+│   └── complaint.py
+│
+├── services/
+│   ├── customer_service.py
+│   ├── subscription_service.py
+│   ├── delivery_service.py
+│   ├── payment_service.py
+│   ├── complaint_service.py
+│   └── report_service.py
+│
+├── routers/
+│   ├── auth.py
+│   ├── customers.py
+│   ├── plans.py
+│   ├── subscriptions.py
+│   ├── deliveries.py
+│   ├── payments.py
+│   ├── complaints.py
+│   └── reports.py
+│
+├── utils/
+│   ├── validators.py
+│   ├── date_utils.py
+│   └── file_handler.py
+│
+└── tests/
+```
 
 ---
+
+## 11.2 Core Layer
+
+### main.py
+
+Purpose:
+
+Application entry point.
+
+Responsibilities:
+
+* Create FastAPI application.
+* Register all routers.
+* Configure middleware.
+* Initialize database connection.
+
+Major Functions:
+
+create_application()
+
+Purpose:
+Creates FastAPI application instance.
+
+Returns:
+FastAPI object.
+
+Dependencies:
+
+* config.py
+* database.py
+* all routers
+
+---
+
+### config.py
+
+Purpose:
+
+Stores application configuration.
+
+Fields:
+
+* DATABASE_URL
+* SECRET_KEY
+* JWT_ALGORITHM
+* ACCESS_TOKEN_EXPIRE_MINUTES
+
+Responsibilities:
+
+* Centralized configuration management.
+* Environment variable handling.
+
+---
+
+### database.py
+
+Purpose:
+
+Database connection configuration.
+
+Responsibilities:
+
+* Create SQLAlchemy engine.
+* Create session factory.
+* Provide database dependency.
+
+Functions:
+
+get_db()
+
+Purpose:
+Provides database session.
+
+Returns:
+Database session object.
+
+---
+
+### security.py
+
+Purpose:
+
+Authentication and authorization utilities.
+
+Functions:
+
+hash_password()
+
+Purpose:
+Hash plain password.
+
+Parameters:
+
+* password
+
+Returns:
+Hashed password.
+
+---
+
+verify_password()
+
+Purpose:
+Verify password during login.
+
+Parameters:
+
+* plain_password
+* hashed_password
+
+Returns:
+Boolean
+
+---
+
+create_access_token()
+
+Purpose:
+Generate JWT token.
+
+Parameters:
+
+* user_id
+* role
+
+Returns:
+JWT token
+
+---
+
+## 11.3 Models Layer
+
+### customer.py
+
+Purpose:
+
+Represents customer information.
+
+Fields:
+
+* id
+* full_name
+* phone_number
+* email
+* address
+* route_id
+* diet_type
+* is_active
+* created_at
+
+Relationships:
+
+* One Customer → One Active Subscription
+* One Customer → Many Payments
+* One Customer → Many Complaints
+
+Validations:
+
+* Unique phone number.
+* Name required.
+* Address required.
+
+---
+
+### plan.py
+
+Purpose:
+
+Stores subscription plans.
+
+Fields:
+
+* id
+* name
+* price
+* billing_cycle
+* meal_type
+* daily_food_cost
+
+Examples:
+
+* Monthly Veg
+* Monthly Premium
+* Weekly Saver
+* Diabetic Special
+
+---
+
+### subscription.py
+
+Purpose:
+
+Stores active subscriptions.
+
+Fields:
+
+* id
+* customer_id
+* plan_id
+* start_date
+* end_date
+* remaining_pause_days
+* status
+
+Validations:
+
+* One active subscription per customer.
+
+---
+
+### route.py
+
+Purpose:
+
+Stores delivery routes.
+
+Fields:
+
+* id
+* route_name
+* delivery_boy_id
+
+Examples:
+
+* East Vijaynagar
+* West Vijaynagar
+* Indra Vihar
+
+---
+
+### delivery.py
+
+Purpose:
+
+Stores daily deliveries.
+
+Fields:
+
+* id
+* customer_id
+* route_id
+* status
+* retry_count
+* failure_reason
+
+Statuses:
+
+* Prepared
+* Out For Delivery
+* Delivered
+* Failed
+* Missed
+
+---
+
+### payment.py
+
+Purpose:
+
+Stores payment information.
+
+Fields:
+
+* id
+* customer_id
+* amount
+* payment_method
+* payment_date
+* payment_status
+
+Payment Methods:
+
+* Cash
+* UPI
+* Khaata
+
+---
+
+### complaint.py
+
+Purpose:
+
+Stores customer complaints.
+
+Fields:
+
+* id
+* customer_id
+* category
+* severity
+* description
+* resolution_deadline
+* compensation
+
+Severity Levels:
+
+* Low
+* Medium
+* High
+
+---
+
+## 11.4 Schema Layer
+
+### CustomerCreate
+
+Purpose:
+
+Validate customer creation requests.
+
+Fields:
+
+* full_name
+* phone_number
+* address
+* diet_type
+
+Validation:
+
+* Name required.
+* Phone required.
+* Address required.
+
+---
+
+### CustomerUpdate
+
+Purpose:
+
+Validate customer update requests.
+
+Fields:
+
+* full_name
+* address
+* diet_type
+
+---
+
+### SubscriptionCreate
+
+Purpose:
+
+Validate subscription creation.
+
+Fields:
+
+* customer_id
+* plan_id
+* start_date
+
+---
+
+### DeliveryUpdate
+
+Purpose:
+
+Validate delivery status updates.
+
+Fields:
+
+* delivery_id
+* status
+* failure_reason
+
+---
+
+### ComplaintCreate
+
+Purpose:
+
+Validate complaint registration.
+
+Fields:
+
+* customer_id
+* category
+* severity
+* description
+
+---
+
+## 11.5 Service Layer
+
+### customer_service.py
+
+Functions:
+
+create_customer()
+
+Responsibilities:
+
+* Validate customer data.
+* Check duplicate phone number.
+* Save customer.
+
+Parameters:
+
+* customer_data
+
+Returns:
+
+* Customer object
+
+---
+
+update_customer()
+
+Responsibilities:
+
+* Update customer information.
+
+Parameters:
+
+* customer_id
+* update_data
+
+Returns:
+
+* Updated customer
+
+---
+
+deactivate_customer()
+
+Responsibilities:
+
+* Mark customer inactive.
+
+Parameters:
+
+* customer_id
+
+Returns:
+
+* Success message
+
+---
+
+### subscription_service.py
+
+Functions:
+
+create_subscription()
+
+renew_subscription()
+
+pause_subscription()
+
+resume_subscription()
+
+cancel_subscription()
+
+Responsibilities:
+
+* Manage complete subscription lifecycle.
+
+---
+
+### delivery_service.py
+
+Functions:
+
+generate_daily_deliveries()
+
+assign_route()
+
+update_delivery_status()
+
+retry_failed_delivery()
+
+Responsibilities:
+
+* Manage delivery operations.
+
+---
+
+### payment_service.py
+
+Functions:
+
+generate_invoice()
+
+record_payment()
+
+apply_discount()
+
+send_payment_reminder()
+
+Responsibilities:
+
+* Manage billing workflow.
+
+---
+
+### complaint_service.py
+
+Functions:
+
+create_complaint()
+
+assign_severity()
+
+resolve_complaint()
+
+record_compensation()
+
+Responsibilities:
+
+* Manage complaint lifecycle.
+
+---
+
+### report_service.py
+
+Functions:
+
+generate_monthly_report()
+
+calculate_revenue()
+
+calculate_delivery_statistics()
+
+Responsibilities:
+
+* Generate business reports.
+
+---
+
+## 11.6 Router Layer
+
+### auth.py
+
+Endpoints:
+
+* POST /login
+* POST /logout
+
+---
+
+### customers.py
+
+Endpoints:
+
+* POST /customers
+* GET /customers
+* GET /customers/{id}
+* PUT /customers/{id}
+* DELETE /customers/{id}
+
+---
+
+### plans.py
+
+Endpoints:
+
+* POST /plans
+* GET /plans
+* PUT /plans/{id}
+
+---
+
+### subscriptions.py
+
+Endpoints:
+
+* POST /subscriptions
+* GET /subscriptions
+* POST /subscriptions/pause
+* POST /subscriptions/resume
+
+---
+
+### deliveries.py
+
+Endpoints:
+
+* GET /deliveries
+* PUT /deliveries/{id}/status
+* POST /deliveries/retry
+
+---
+
+### payments.py
+
+Endpoints:
+
+* POST /payments
+* GET /payments
+* GET /invoices
+
+---
+
+### complaints.py
+
+Endpoints:
+
+* POST /complaints
+* GET /complaints
+* PUT /complaints/{id}/resolve
+
+---
+
+### reports.py
+
+Endpoints:
+
+* GET /reports/monthly
+* GET /reports/dashboard
+
+---
+
+## 11.7 Validation Strategy
+
+The system will enforce the following validations:
+
+* Phone number must be unique.
+* One active subscription per customer.
+* Pause duration cannot exceed seven days.
+* Add-ons must be requested before 9:00 AM.
+* Payment reminders must be generated automatically.
+* Failed deliveries require a failure reason.
+* Complaint severity must be valid.
+* Route assignment must exist before delivery generation.
+* Customer documents must be valid file types.
+* Referral rewards cannot be self-generated.
+
+---
+
+## 11.8 API Summary
+
+Estimated API Modules:
+
+* Authentication APIs
+* Customer APIs
+* Plan APIs
+* Subscription APIs
+* Delivery APIs
+* Payment APIs
+* Complaint APIs
+* Report APIs
+
+Total Estimated Endpoints: 35–50 APIs
+
+```
+```
+
 
 ## 12. Future Enhancements
 
