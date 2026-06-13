@@ -884,25 +884,61 @@ Responsibilities:
 
 ### database.py
 
+### database.py
+
 Purpose:
 
-Database connection configuration.
+Database configuration and session management.
+
+Technology Choice:
+
+The project will use SQLModel as the primary ORM layer.
+
+Reasoning:
+
+* SQLModel combines SQLAlchemy and Pydantic concepts.
+* Database models and API data models remain closely aligned.
+* Reduces duplication between table definitions and request/response schemas.
+* Integrates naturally with FastAPI tutorials and documentation.
+* Simplifies development for CRUD-heavy business applications.
 
 Responsibilities:
 
-* Create SQLAlchemy engine.
-* Create session factory.
-* Provide database dependency.
+* Create database engine.
+* Create database sessions.
+* Provide dependency injection for database access.
+* Initialize database tables during application startup.
 
 Functions:
 
-get_db()
+get_session()
 
 Purpose:
-Provides database session.
+
+Provides a database session for API requests.
 
 Returns:
-Database session object.
+
+SQLModel Session object.
+
+Dependencies:
+
+* SQLModel
+* Database engine configuration
+
+Trade-offs:
+
+Advantages:
+
+* Less boilerplate code.
+* Better FastAPI integration.
+* Easier schema maintenance.
+
+Limitations:
+
+* Slightly less flexible than using raw SQLAlchemy for highly complex ORM configurations.
+* Additional abstraction layer over SQLAlchemy.
+
 
 ---
 
@@ -991,21 +1027,46 @@ Validations:
 * Address required.
 
 ---
-
 ### plan.py
 
 Purpose:
 
-Stores subscription plans.
+Stores subscription plans offered by the business.
 
-Fields:
+---
 
-* id
-* name
-* price
-* billing_cycle
-* meal_type
-* daily_food_cost
+Field: id
+
+Type:
+Integer
+
+Required:
+System Generated
+
+Meaning:
+Unique identifier for the plan.
+
+Validation:
+Must be unique.
+
+Example:
+1
+
+---
+
+Field: name
+
+Type:
+String
+
+Required:
+Yes
+
+Meaning:
+Display name of the subscription plan.
+
+Validation:
+Cannot be empty.
 
 Examples:
 
@@ -1016,27 +1077,321 @@ Examples:
 
 ---
 
+Field: price
+
+Type:
+Decimal(10,2)
+
+Required:
+Yes
+
+Meaning:
+Subscription price charged to the customer.
+
+Validation:
+
+* Must be greater than zero.
+* Stored using Decimal to prevent floating-point rounding errors.
+
+Example:
+
+2800.00
+
+---
+
+Field: billing_cycle
+
+Type:
+String (Enum)
+
+Required:
+Yes
+
+Meaning:
+Determines how frequently the customer is billed.
+
+Allowed Values:
+
+* Weekly
+* Monthly
+
+Example:
+
+Monthly
+
+---
+
+Field: meal_type
+
+Type:
+String
+
+Required:
+Yes
+
+Meaning:
+Defines meal coverage provided by the plan.
+
+Allowed Values:
+
+* Lunch
+* Lunch and Dinner
+
+Example:
+
+Lunch and Dinner
+
+---
+
+Field: daily_food_cost
+
+Type:
+Decimal(10,2)
+
+Required:
+Yes
+
+Meaning:
+Estimated daily preparation cost for a customer enrolled in the plan.
+
+Validation:
+
+* Must be greater than zero.
+* Stored using Decimal for financial accuracy.
+
+Example:
+
+85.50
+
+---
+
+Field: is_active
+
+Type:
+Boolean
+
+Required:
+No
+
+Default:
+True
+
+Meaning:
+Indicates whether the plan is currently available for new subscriptions.
+
+Example:
+
+True
+
+---
+
+Business Rules:
+
+* Plan names must be unique.
+* Existing subscriptions retain their current pricing until renewal.
+* Deactivated plans cannot be assigned to new customers.
+
+
 ### subscription.py
 
 Purpose:
 
-Stores active subscriptions.
+Stores active customer subscriptions.
 
 Fields:
 
-* id
-* customer_id
-* plan_id
-* start_date
-* end_date
-* remaining_pause_days
-* status
+id
+
+Type:
+Integer
+
+Required:
+System Generated
+
+Meaning:
+Unique subscription identifier.
+
+---
+
+customer_id
+
+Type:
+Integer (Foreign Key)
+
+Required:
+Yes
+
+Meaning:
+Customer associated with the subscription.
+
+---
+
+plan_id
+
+Type:
+Integer (Foreign Key)
+
+Required:
+Yes
+
+Meaning:
+Selected subscription plan.
+
+---
+
+plan_price_snapshot
+
+Type:
+Decimal(10,2)
+
+Required:
+Yes
+
+Meaning:
+Stores the plan price at the time the subscription is created.
+
+Reasoning:
+
+Protects active subscriptions from future plan price changes.
+
+Example:
+
+Customer subscribes when Monthly Veg costs:
+
+2800.00
+
+Later the administrator updates the plan price to:
+
+3200.00
+
+The active subscription continues using:
+
+2800.00
+
+until renewal.
+
+ ---
+
+start_date
+
+Type:
+Date
+
+Required:
+Yes
+
+Meaning:
+Date on which the subscription becomes active.
+
+---
+
+end_date
+
+Type:
+Date
+
+Required:
+Yes
+
+Meaning:
+Date on which the subscription expires.
+
+---
+
+pause_limit_days
+
+Type:
+Integer
+
+Required:
+Yes
+
+Default:
+7
+
+Meaning:
+Maximum pause days allowed per billing cycle.
+
+---
+
+status
+
+Type:
+String (Enum)
+
+Required:
+Yes
+
+Allowed Values:
+
+* Active
+* Paused
+* Cancelled
+* Expired
+
+Meaning:
+Current subscription state.
+
+---
+
+Pause Tracking Design
+
+Authoritative Source:
+
+PauseRequest records are the source of truth for all pause calculations.
+
+Reasoning:
+
+The system stores every pause event with start date, end date, and duration.
+
+Derived Values:
+
+The remaining pause allowance is calculated from pause history rather than stored independently.
+
+Formula:
+
+remaining_pause_days =
+pause_limit_days - total_pause_days_used
+
+Benefits:
+
+* Prevents data inconsistency.
+* Maintains complete audit history.
+* Supports accurate reporting.
+* Eliminates duplicate sources of truth.
+
+Reporting Strategy:
+
+Monthly reports will calculate pause usage from PauseRequest history records rather than a stored remaining_pause_days value.
+
+---
+
+
+Pricing Snapshot Design
+
+Authoritative Source:
+
+The Subscription record stores a plan_price_snapshot value when the subscription is created.
+
+Reasoning:
+
+Plan prices may change over time.
+
+Existing subscribers should continue using the agreed subscription price until renewal.
+
+This prevents historical invoices from changing when administrators update plan pricing.
+
+Reporting Strategy:
+
+Revenue calculations and invoice generation use plan_price_snapshot rather than the current Plan price.
+
+---
 
 Validations:
 
 * One active subscription per customer.
-
----
+* End date must be greater than start date.
+* Pause limit cannot be negative.
 
 ### route.py
 
@@ -1110,25 +1465,371 @@ Payment Methods:
 
 Purpose:
 
-Stores customer complaints.
+Stores customer complaints, resolution tracking, severity information, and compensation records.
 
 Fields:
 
-* id
-* customer_id
-* category
-* severity
-* description
-* resolution_deadline
-* compensation
+---
 
-Severity Levels:
+Field: id
+
+Type:
+Integer
+
+Required:
+System Generated
+
+Meaning:
+Unique identifier for the complaint.
+
+Validation:
+Must be unique.
+
+---
+
+Field: customer_id
+
+Type:
+Integer (Foreign Key)
+
+Required:
+Yes
+
+Meaning:
+Customer who raised the complaint.
+
+Validation:
+Must reference an existing customer.
+
+---
+
+Field: category
+
+Type:
+String (Enum)
+
+Required:
+Yes
+
+Meaning:
+Type of complaint submitted.
+
+Allowed Values:
+
+* Late Delivery
+* Cold Food
+* Wrong Order
+* Missing Item
+* Taste Complaint
+* Other
+
+---
+
+Field: severity
+
+Type:
+String (Enum)
+
+Required:
+Yes
+
+Meaning:
+Determines complaint priority and resolution deadline.
+
+Allowed Values:
 
 * Low
 * Medium
 * High
 
 ---
+
+Field: description
+
+Type:
+Text
+
+Required:
+Yes
+
+Meaning:
+Detailed explanation of the complaint provided by the customer.
+
+Validation:
+Cannot be empty.
+
+---
+
+Field: created_at
+
+Type:
+DateTime
+
+Required:
+System Generated
+
+Meaning:
+Timestamp when the complaint was created.
+
+---
+
+Field: resolution_deadline
+
+Type:
+DateTime
+
+Required:
+System Generated
+
+Meaning:
+Deadline by which the complaint must be resolved.
+
+Calculation:
+
+* Low Severity → created_at + 48 hours
+* Medium Severity → created_at + 24 hours
+* High Severity → created_at + 6 hours
+
+---
+
+Field: status
+
+Type:
+String (Enum)
+
+Required:
+Yes
+
+Default:
+Open
+
+Allowed Values:
+
+* Open
+* In Progress
+* Resolved
+* Closed
+
+Meaning:
+Current state of the complaint.
+
+---
+
+Field: compensation
+
+Type:
+String
+
+Required:
+No
+
+Meaning:
+Compensation provided to the customer.
+
+Examples:
+
+* Free next day's tiffin
+* 50% discount on next add-on
+* No compensation
+
+---
+
+Severity Deadline Mapping
+
+The system will maintain a centralized severity configuration.
+
+Mapping:
+
+* Low → 48 Hours
+* Medium → 24 Hours
+* High → 6 Hours
+
+Implementation Strategy:
+
+The mapping will be stored in a centralized constants/configuration layer rather than manually entered for each complaint.
+
+Reasoning:
+
+* Keeps business rules consistent.
+* Prevents accidental deadline mismatches.
+* Simplifies future business rule changes.
+* Ensures all complaints follow the same SLA policy.
+
+---
+
+Overdue Complaint Logic
+
+A complaint is considered overdue when:
+
+current_time > resolution_deadline
+
+AND
+
+status is not Resolved or Closed.
+
+The API will calculate overdue status dynamically rather than storing it as a separate database field.
+
+---
+
+Relationships
+
+* One Customer → Many Complaints
+* One Complaint → One ComplaintResolution
+
+---
+
+Business Rules
+
+* Every complaint must have a category.
+* Every complaint must have a severity level.
+* Resolution deadline is automatically calculated.
+* Closed complaints cannot be modified without administrator permission.
+* Compensation records must be maintained for resolved complaints.
+
+### pause_request.py
+
+Purpose:
+
+Stores customer subscription pause records.
+
+Key Fields:
+
+- id
+- subscription_id
+- start_date
+- end_date
+- pause_days
+
+---
+
+### addon.py
+
+Purpose:
+
+Stores available add-on items.
+
+Examples:
+
+- Extra Paneer
+- Salad
+- Raita
+- Kheer
+
+Key Fields:
+
+- id
+- name
+- price
+- is_active
+
+---
+
+### invoice.py
+
+Purpose:
+
+Stores generated customer invoices.
+
+Key Fields:
+
+- id
+- customer_id
+- billing_period
+- invoice_amount
+- final_amount
+- payment_status
+
+---
+
+### referral.py
+
+Purpose:
+
+Stores referral relationships between customers.
+
+Key Fields:
+
+- id
+- referrer_customer_id
+- referred_customer_id
+- reward_applied
+
+---
+
+### customer_document.py
+
+Purpose:
+
+Stores uploaded identity documents.
+
+Key Fields:
+
+- id
+- customer_id
+- document_type
+- file_path
+
+---
+
+### delivery_status_history.py
+
+Purpose:
+
+Stores delivery status change history.
+
+Key Fields:
+
+- id
+- delivery_id
+- old_status
+- new_status
+- changed_at
+
+---
+
+### complaint_resolution.py
+
+Purpose:
+
+Stores complaint resolution information.
+
+Key Fields:
+
+- id
+- complaint_id
+- resolution_notes
+- compensation_provided
+
+---
+
+### payment_reminder.py
+
+Purpose:
+
+Stores payment reminder records.
+
+Key Fields:
+
+- id
+- customer_id
+- reminder_date
+- status
+
+---
+
+### monthly_report.py
+
+Purpose:
+
+Stores generated monthly reports.
+
+Key Fields:
+
+- id
+- report_month
+- total_tiffins_served
+- total_revenue
+- total_complaints
 
 ## 11.4 Schema Layer
 
@@ -1492,18 +2193,112 @@ The following features are outside the current scope but may be considered in fu
 
 ---
 
-## 13. Acceptance Criteria
+## 13. Definition of Done (V1)
 
-The project will be considered successful if:
+The V1 release will be considered complete only when all of the following conditions are satisfied.
 
-* Customer subscriptions can be managed digitally.
-* Deliveries can be tracked by status.
-* Billing and payments are recorded accurately.
-* Complaints are logged and resolved through the system.
-* Monthly reports can be generated automatically.
-* Administrators can view operational statistics through a dashboard.
-* Customers can pause subscriptions without manual intervention.
-* Delivery personnel can update delivery statuses for their assigned routes.
+### 13.1 Customer Management
+
+1. POST /customers creates a customer successfully and returns HTTP 201.
+
+2. GET /customers/{id} returns customer details including route assignment and diet preference.
+
+3. Duplicate phone numbers are rejected with HTTP 409 Conflict.
+
+4. Customer identity documents can be uploaded and linked to the customer profile.
+
+---
+
+### 13.2 Subscription Management
+
+5. POST /subscriptions creates a subscription successfully.
+
+6. The system prevents multiple active subscriptions for the same customer.
+
+7. POST /subscriptions/pause records a pause request.
+
+8. Pause requests exceeding seven days per billing cycle are rejected.
+
+9. Subscription pricing remains unchanged after a plan price update due to the stored plan_price_snapshot value.
+
+---
+
+### 13.3 Delivery Management
+
+10. Daily deliveries can be generated automatically for active subscriptions.
+
+11. Delivery status can transition from Prepared → Out For Delivery → Delivered.
+
+12. Failed deliveries require a failure reason.
+
+13. Failed deliveries can be retried once.
+
+14. Delivery personnel can only view deliveries assigned to their route.
+
+---
+
+### 13.4 Billing and Payments
+
+15. Invoices can be generated for active subscriptions.
+
+16. Payment records can be created using Cash, UPI, or Khaata.
+
+17. Early-payment discounts are applied correctly.
+
+18. Referral discounts are applied only after referral eligibility requirements are met.
+
+19. Payment reminders can be generated for upcoming due dates.
+
+---
+
+### 13.5 Complaint Management
+
+20. POST /complaints creates a complaint successfully.
+
+21. Complaint severity automatically generates the correct resolution deadline.
+
+22. Low severity complaints receive a 48-hour deadline.
+
+23. Medium severity complaints receive a 24-hour deadline.
+
+24. High severity complaints receive a 6-hour deadline.
+
+25. Overdue complaints are identified correctly by the system.
+
+---
+
+### 13.6 Reporting and Dashboard
+
+26. Monthly reports can be generated through the reporting module.
+
+27. Reports include revenue, complaints, pause statistics, and delivery statistics.
+
+28. Dashboard endpoint returns daily operational metrics.
+
+29. Dashboard displays delivery counts grouped by status.
+
+30. Dashboard displays route-wise delivery statistics.
+
+---
+
+### 13.7 API Quality
+
+31. All APIs appear in FastAPI OpenAPI documentation.
+
+32. Request validation errors return HTTP 422.
+
+33. Unauthorized access returns HTTP 401.
+
+34. Forbidden role access returns HTTP 403.
+
+35. Automated test suite passes successfully before release.
+
+---
+
+### Release Approval Condition
+
+V1 is considered complete only when all Definition of Done items pass manual testing and automated testing without critical defects.
+
 
 ---
 
