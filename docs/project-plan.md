@@ -406,29 +406,157 @@ The following entities are expected in the initial system design:
 
 ### Core Entities
 
-* User
-* Customer
-* DeliveryBoy
-* Route
-* Plan
-* Subscription
-* PauseRequest
-* Delivery
-* Payment
-* Complaint
-* AddOn
-* Invoice
-* Referral
-* CustomerDocument
+• User
+
+Role values:
+
+* ADMIN
+* CUSTOMER
+* DELIVERY_BOY
+
+Purpose:
+
+Stores authentication credentials and role-based access information for all system users.
+
+---
+
+• Customer
+
+Purpose:
+
+Stores customer profile and contact information.
+
+---
+
+• Route
+
+Purpose:
+
+Stores delivery routes and route assignments.
+
+---
+
+• Plan
+
+Purpose:
+
+Stores subscription plans and pricing information.
+
+---
+
+• Subscription
+
+Purpose:
+
+Stores customer subscription details and lifecycle information.
+
+---
+
+• Delivery
+
+Purpose:
+
+Stores daily delivery records and delivery status.
+
+---
+
+• Payment
+
+Purpose:
+
+Stores payment transactions and payment status.
+
+---
+
+• Complaint
+
+Purpose:
+
+Stores customer complaints and their severity.
+
+---
 
 ### Supporting Entities
 
-* DeliveryStatusHistory
-* PaymentReminder
-* ComplaintResolution
-* MonthlyReport
+• PauseRequest
 
-These entities may evolve during implementation as additional business requirements are discovered.
+Purpose:
+
+Stores subscription pause history and serves as the authoritative source for pause calculations.
+
+---
+
+• AddOn
+
+Purpose:
+
+Stores the catalog of available add-on items.
+
+---
+
+• AddOnOrder
+
+Purpose:
+
+Stores customer-specific add-on orders and supports the 9:00 AM cutoff rule.
+
+---
+
+• Invoice
+
+Purpose:
+
+Stores billing records and invoice history.
+
+---
+
+• Referral
+
+Purpose:
+
+Stores customer referral relationships and reward eligibility.
+
+---
+
+• CustomerDocument
+
+Purpose:
+
+Stores Aadhaar and driving licence documents uploaded by customers.
+
+---
+
+• DeliveryStatusHistory
+
+Purpose:
+
+Stores delivery status transitions for audit and reporting.
+
+---
+
+• ComplaintResolution
+
+Purpose:
+
+Stores complaint resolution details and compensation records.
+
+---
+
+• PaymentReminder
+
+Purpose:
+
+Stores reminder history for upcoming and overdue payments.
+
+---
+
+• MonthlyReport
+
+Purpose:
+
+Stores monthly operational report snapshots and analytics.
+
+
 
 ## 7. Business Rules and Assumptions
 
@@ -781,17 +909,26 @@ app/
 │   ├── database.py
 │   └── security.py
 │
-├── models/
-│   ├── user.py
-│   ├── customer.py
-│   ├── plan.py
-│   ├── subscription.py
-│   ├── route.py
-│   ├── delivery.py
-│   ├── payment.py
-│   ├── complaint.py
-│   ├── referral.py
-│   └── document.py
+models/
+│
+├── user.py
+├── customer.py
+├── plan.py
+├── subscription.py
+├── route.py
+├── delivery.py
+├── payment.py
+├── complaint.py
+├── pause_request.py
+├── addon.py
+├── addon_order.py
+├── invoice.py
+├── referral.py
+├── customer_document.py
+├── delivery_status_history.py
+├── complaint_resolution.py
+├── payment_reminder.py
+└── monthly_report.py
 │
 ├── schemas/
 │   ├── customer.py
@@ -882,7 +1019,6 @@ Responsibilities:
 
 ---
 
-### database.py
 
 ### database.py
 
@@ -996,37 +1132,292 @@ JWT token
 
 ## 11.3 Models Layer
 
+### user.py
+
+Purpose:
+
+Stores authentication credentials and role information for system users.
+
+Reason for Separate Model:
+
+Authentication concerns are separated from customer business data to support role-based access and secure password management.
+
+Fields:
+
+---
+
+Field: id
+
+Type:
+Integer
+
+Required:
+System Generated
+
+Meaning:
+Unique identifier for the user.
+
+---
+
+Field: username
+
+Type:
+String
+
+Required:
+Yes
+
+Meaning:
+Unique login identifier.
+
+Validation:
+
+* Must be unique.
+* Cannot be empty.
+
+---
+
+Field: password_hash
+
+Type:
+String
+
+Required:
+Yes
+
+Meaning:
+Securely hashed password used for authentication.
+
+Reasoning:
+
+Passwords are never stored in plain text.
+
+---
+
+Field: role
+
+Type:
+String (Enum)
+
+Required:
+Yes
+
+Allowed Values:
+
+* ADMIN
+* CUSTOMER
+* DELIVERY_BOY
+
+Meaning:
+
+Determines permissions and API access.
+
+---
+
+Field: customer_id
+
+Type:
+Integer (Foreign Key)
+
+Required:
+No
+
+Meaning:
+
+Links a customer account to its authentication record.
+
+Null For:
+
+* Administrators
+* Delivery personnel
+
+Relationships:
+
+* One Customer → One User account
+
+Authentication Strategy:
+
+Administrators and customers authenticate through User records.
+
+Business data remains in customer.py while credentials are isolated in user.py.
+--- 
+
 ### customer.py
 
 Purpose:
 
-Represents customer information.
+Represents customer information and profile details.
 
-Fields:
+---
 
-* id
-* full_name
-* phone_number
-* email
-* address
-* route_id
-* diet_type
-* is_active
-* created_at
+Field: id
 
-Relationships:
+Type:
+Integer
 
+Required:
+System Generated
+
+Meaning:
+Unique identifier for the customer.
+
+Validation:
+Must be unique.
+
+---
+
+Field: full_name
+
+Type:
+String
+
+Required:
+Yes
+
+Meaning:
+Full name of the customer.
+
+Validation:
+Cannot be empty.
+
+---
+
+Field: phone_number
+
+Type:
+String
+
+Required:
+Yes
+
+Meaning:
+Primary contact number used for communication.
+
+Validation:
+
+* Must be unique.
+* Cannot be empty.
+
+---
+
+Field: email
+
+Type:
+String
+
+Required:
+No
+
+Meaning:
+Customer email address.
+
+Validation:
+
+* Must follow valid email format if provided.
+
+---
+
+Field: address
+
+Type:
+String
+
+Required:
+Yes
+
+Meaning:
+Delivery address of the customer.
+
+Validation:
+
+* Cannot be empty.
+
+---
+
+Field: route_id
+
+Type:
+Integer (Foreign Key)
+
+Required:
+Yes
+
+Meaning:
+Assigned delivery route.
+
+Validation:
+
+* Must reference an existing route.
+
+---
+
+Field: diet_type
+
+Type:
+String (Enum)
+
+Required:
+Yes
+
+Meaning:
+Customer dietary preference.
+
+Allowed Values:
+
+* Veg
+* Non-Veg
+* Jain
+* Diabetic
+
+---
+
+Field: is_active
+
+Type:
+Boolean
+
+Required:
+No
+
+Default:
+True
+
+Meaning:
+Indicates whether the customer account is active.
+
+---
+
+Field: created_at
+
+Type:
+DateTime
+
+Required:
+System Generated
+
+Meaning:
+Timestamp when the customer account was created.
+
+---
+
+Relationships
+
+* One Customer → One User Account
 * One Customer → One Active Subscription
 * One Customer → Many Payments
 * One Customer → Many Complaints
-
-Validations:
-
-* Unique phone number.
-* Name required.
-* Address required.
+* One Customer → Many AddOnOrders
 
 ---
+
+Business Rules
+
+* Phone numbers must be unique.
+* Inactive customers cannot create subscriptions.
+* Customers can access only their own information.
+
+--- 
+
 ### plan.py
 
 Purpose:
@@ -1397,13 +1788,42 @@ Validations:
 
 Purpose:
 
-Stores delivery routes.
+Stores delivery routes and route assignments.
 
-Fields:
+---
 
-* id
-* route_name
-* delivery_boy_id
+Field: id
+
+Type:
+Integer
+
+Required:
+System Generated
+
+Meaning:
+Unique identifier for the route.
+
+Validation:
+
+Must be unique.
+
+---
+
+Field: route_name
+
+Type:
+String
+
+Required:
+Yes
+
+Meaning:
+Name of the delivery route.
+
+Validation:
+
+* Cannot be empty.
+* Must be unique.
 
 Examples:
 
@@ -1413,51 +1833,376 @@ Examples:
 
 ---
 
+Field: user_id
+
+Type:
+Integer (Foreign Key)
+
+Required:
+Yes
+
+Meaning:
+User assigned to the route.
+
+Validation:
+
+Must reference a User record having role = DELIVERY_BOY.
+---
+
+Field: is_active
+
+Type:
+Boolean
+
+Required:
+No
+
+Default:
+True
+
+Meaning:
+Indicates whether the route is currently active.
+
+---
+
+Relationships
+
+* One Route → Many Customers
+* One Route → Many Deliveries
+* One Route → One Delivery Boy
+
+---
+
+Business Rules
+
+* Every route must have one assigned delivery boy.
+* Route names must be unique.
+* Inactive routes cannot receive new customer assignments.
+* Route statistics are generated using delivery records.
+
+---
+
 ### delivery.py
 
 Purpose:
 
-Stores daily deliveries.
+Stores daily delivery records and delivery status tracking.
 
-Fields:
+---
 
-* id
-* customer_id
-* route_id
-* status
-* retry_count
-* failure_reason
+Field: id
 
-Statuses:
+Type:
+Integer
+
+Required:
+System Generated
+
+Meaning:
+Unique identifier for the delivery.
+
+Validation:
+
+Must be unique.
+
+---
+
+Field: customer_id
+
+Type:
+Integer (Foreign Key)
+
+Required:
+Yes
+
+Meaning:
+Customer receiving the delivery.
+
+Validation:
+
+Must reference an existing customer.
+
+---
+
+Field: route_id
+
+Type:
+Integer (Foreign Key)
+
+Required:
+Yes
+
+Meaning:
+Route assigned for the delivery.
+
+Validation:
+
+Must reference an existing route.
+
+---
+
+Field: status
+
+Type:
+String (Enum)
+
+Required:
+Yes
+
+Default:
+Prepared
+
+Meaning:
+Current delivery status.
+
+Allowed Values:
 
 * Prepared
 * Out For Delivery
 * Delivered
 * Failed
+* Retry Scheduled
 * Missed
 
 ---
 
+Field: retry_count
+
+Type:
+Integer
+
+Required:
+No
+
+Default:
+0
+
+Meaning:
+Number of retry attempts made for the delivery.
+
+Validation:
+
+* Cannot be negative.
+* Maximum allowed value is 1.
+
+---
+
+Field: failure_reason
+
+Type:
+String
+
+Required:
+No
+
+Meaning:
+Reason for delivery failure.
+
+Examples:
+
+* Customer not available
+* Incorrect address
+* Customer cancelled order
+
+---
+
+Field: delivered_at
+
+Type:
+DateTime
+
+Required:
+No
+
+Meaning:
+Timestamp when delivery was successfully completed.
+
+---
+
+Relationships
+
+* One Customer → Many Deliveries
+* One Route → Many Deliveries
+* One Delivery → Many DeliveryStatusHistory records
+
+---
+
+Business Rules
+
+* Every delivery must belong to exactly one route.
+* Failed deliveries require a failure reason.
+* Deliveries can be retried only once.
+* Retry deliveries are scheduled for 8:00 PM.
+* Delivered deliveries cannot be modified without administrator action.
+* Delivery status transitions must follow the defined workflow.
+
+Status Flow:
+
+Prepared → Out For Delivery → Delivered
+
+OR
+
+Prepared → Out For Delivery → Failed
+
+Retry Flow:
+
+Failed → Retry Scheduled → Delivered
+
+OR
+
+Failed → Retry Scheduled → Missed
+
+---
 ### payment.py
 
 Purpose:
 
-Stores payment information.
+Stores customer payment transactions and payment status information.
 
-Fields:
+---
 
-* id
-* customer_id
-* amount
-* payment_method
-* payment_date
-* payment_status
+Field: id
 
-Payment Methods:
+Type:
+Integer
+
+Required:
+System Generated
+
+Meaning:
+Unique identifier for the payment record.
+
+Validation:
+
+Must be unique.
+
+---
+
+Field: customer_id
+
+Type:
+Integer (Foreign Key)
+
+Required:
+Yes
+
+Meaning:
+Customer associated with the payment.
+
+Validation:
+
+Must reference an existing customer.
+
+---
+
+Field: amount
+
+Type:
+Decimal(10,2)
+
+Required:
+Yes
+
+Meaning:
+Amount received from the customer.
+
+Validation:
+
+* Must be greater than zero.
+* Stored using Decimal to ensure financial accuracy.
+
+---
+
+Field: payment_method
+
+Type:
+String (Enum)
+
+Required:
+Yes
+
+Meaning:
+Method used to make the payment.
+
+Allowed Values:
 
 * Cash
 * UPI
 * Khaata
+
+---
+
+Field: payment_date
+
+Type:
+DateTime
+
+Required:
+System Generated
+
+Meaning:
+Timestamp when the payment was recorded.
+
+---
+
+Field: payment_status
+
+Type:
+String (Enum)
+
+Required:
+Yes
+
+Meaning:
+Current status of the payment.
+
+Allowed Values:
+
+* Pending
+* Paid
+* Failed
+* Overdue
+
+Default:
+
+Pending
+
+---
+
+Field: transaction_reference
+
+Type:
+String
+
+Required:
+No
+
+Meaning:
+External reference number for UPI or online transactions.
+
+Examples:
+
+* UTR123456789
+* TXN987654321
+
+---
+
+Relationships
+
+* One Customer → Many Payments
+* One Payment → One Invoice
+
+---
+
+Business Rules
+
+* Payment amount must be greater than zero.
+* Monthly subscribers are billed on the first day of the month.
+* Weekly subscribers are billed every Monday.
+* Early payments receive a 10% discount.
+* Payment reminders are generated five days before due dates.
+* Subscriptions with dues exceeding ten days are automatically paused.
+* Khaata balances are tracked separately through invoices and payment records.
 
 ---
 
@@ -1690,15 +2435,153 @@ Business Rules
 
 Purpose:
 
-Stores customer subscription pause records.
+Stores customer subscription pause requests and pause history records.
 
-Key Fields:
+Reason for Separate Model:
 
-- id
-- subscription_id
-- start_date
-- end_date
-- pause_days
+PauseRequest records are the authoritative source of truth for pause tracking, reporting, and pause allowance calculations.
+
+---
+
+Field: id
+
+Type:
+Integer
+
+Required:
+System Generated
+
+Meaning:
+Unique identifier for the pause request.
+
+Validation:
+
+Must be unique.
+
+---
+
+Field: subscription_id
+
+Type:
+Integer (Foreign Key)
+
+Required:
+Yes
+
+Meaning:
+Subscription associated with the pause request.
+
+Validation:
+
+Must reference an existing subscription.
+
+---
+
+Field: start_date
+
+Type:
+Date
+
+Required:
+Yes
+
+Meaning:
+Date from which the pause becomes effective.
+
+Validation:
+
+Cannot be before the current date.
+
+---
+
+Field: end_date
+
+Type:
+Date
+
+Required:
+Yes
+
+Meaning:
+Date on which the pause period ends.
+
+Validation:
+
+Must be greater than or equal to start_date.
+
+---
+
+Field: pause_days
+
+Type:
+Integer
+
+Required:
+System Generated
+
+Meaning:
+Total number of pause days requested.
+
+Calculation:
+
+pause_days = end_date - start_date + 1
+
+Validation:
+
+Must be greater than zero.
+
+---
+
+Field: requested_at
+
+Type:
+DateTime
+
+Required:
+System Generated
+
+Meaning:
+Timestamp when the pause request was submitted.
+
+---
+
+Field: status
+
+Type:
+String (Enum)
+
+Required:
+Yes
+
+Default:
+Approved
+
+Meaning:
+Current state of the pause request.
+
+Allowed Values:
+
+* Approved
+* Rejected
+* Cancelled
+
+---
+
+Relationships
+
+* One Subscription → Many PauseRequests
+
+---
+
+Business Rules
+
+* Maximum seven pause days are allowed per billing cycle.
+* Unused pause days do not carry forward.
+* Additional pause days beyond the limit are forfeited.
+* Deliveries must not be generated during approved pause periods.
+* Monthly reports calculate pause usage using PauseRequest records.
+* Pause history remains permanently available for auditing and reporting.
+
 
 ---
 
@@ -1706,21 +2589,226 @@ Key Fields:
 
 Purpose:
 
-Stores available add-on items.
+Stores the catalog of add-on items offered by the business.
+
+Reason for Separate Model:
+
+The AddOn model represents available add-on products. Customer-specific purchases are stored separately in AddOnOrder records.
+
+---
+
+Field: id
+
+Type:
+Integer
+
+Required:
+System Generated
+
+Meaning:
+Unique identifier for the add-on item.
+
+Validation:
+
+Must be unique.
+
+---
+
+Field: name
+
+Type:
+String
+
+Required:
+Yes
+
+Meaning:
+Display name of the add-on item.
+
+Validation:
+
+* Cannot be empty.
+* Must be unique.
 
 Examples:
 
-- Extra Paneer
-- Salad
-- Raita
-- Kheer
+* Extra Paneer
+* Salad
+* Raita
+* Kheer
 
-Key Fields:
+---
 
-- id
-- name
-- price
-- is_active
+Field: price
+
+Type:
+Decimal(10,2)
+
+Required:
+Yes
+
+Meaning:
+Price charged for one unit of the add-on.
+
+Validation:
+
+* Must be greater than zero.
+* Stored using Decimal to ensure financial accuracy.
+
+Examples:
+
+50.00
+
+100.00
+
+---
+
+Field: is_active
+
+Type:
+Boolean
+
+Required:
+No
+
+Default:
+True
+
+Meaning:
+Indicates whether the add-on is currently available for ordering.
+
+---
+
+Relationships
+
+* One AddOn → Many AddOnOrders
+
+---
+
+Business Rules
+
+* Inactive add-ons cannot be ordered.
+* Add-on catalog changes do not affect previously placed AddOnOrder records.
+* Add-on revenue calculations are based on AddOnOrder records rather than the catalog.
+* Same-day add-on requests must be placed before 9:00 AM.
+
+
+---
+
+### addon_order.py
+
+Purpose:
+
+Stores customer add-on orders.
+
+Reason for Separate Model:
+
+The AddOn model represents the catalog of available add-ons, while AddOnOrder captures customer-specific purchases and supports cutoff validation, billing, and reporting.
+
+Fields:
+
+---
+
+Field: id
+
+Type:
+Integer
+
+Required:
+System Generated
+
+Meaning:
+
+Unique identifier for the add-on order.
+
+---
+
+Field: customer_id
+
+Type:
+Integer (Foreign Key)
+
+Required:
+Yes
+
+Meaning:
+
+Customer who requested the add-on.
+
+---
+
+Field: addon_id
+
+Type:
+Integer (Foreign Key)
+
+Required:
+Yes
+
+Meaning:
+
+Reference to the add-on catalog item.
+
+---
+
+Field: delivery_date
+
+Type:
+Date
+
+Required:
+Yes
+
+Meaning:
+
+Date on which the add-on should be delivered.
+
+---
+
+Field: quantity
+
+Type:
+Integer
+
+Required:
+Yes
+
+Meaning:
+
+Number of add-on units requested.
+
+Validation:
+
+Must be greater than zero.
+
+---
+
+Field: ordered_at
+
+Type:
+DateTime
+
+Required:
+System Generated
+
+Meaning:
+
+Timestamp when the customer placed the add-on order.
+
+Business Rule:
+
+Orders placed after 9:00 AM are rejected for the same day's delivery.
+
+---
+
+Relationships:
+
+* One Customer → Many AddOnOrders
+* One AddOn → Many AddOnOrders
+
+Reporting Strategy:
+
+Monthly revenue reports calculate add-on income using AddOnOrder records rather than the AddOn catalog.
 
 ---
 
@@ -1728,16 +2816,179 @@ Key Fields:
 
 Purpose:
 
-Stores generated customer invoices.
+Stores billing records generated for customer subscriptions.
 
-Key Fields:
+Reason for Separate Model:
 
-- id
-- customer_id
-- billing_period
-- invoice_amount
-- final_amount
-- payment_status
+Invoices represent billing snapshots and preserve financial history independently of payments and subscription changes.
+
+---
+
+Field: id
+
+Type:
+Integer
+
+Required:
+System Generated
+
+Meaning:
+Unique identifier for the invoice.
+
+Validation:
+
+Must be unique.
+
+---
+
+Field: customer_id
+
+Type:
+Integer (Foreign Key)
+
+Required:
+Yes
+
+Meaning:
+Customer associated with the invoice.
+
+Validation:
+
+Must reference an existing customer.
+
+---
+
+Field: billing_period
+
+Type:
+String
+
+Required:
+Yes
+
+Meaning:
+Billing cycle covered by the invoice.
+
+Examples:
+
+* June 2026
+* Week 24, 2026
+
+---
+
+Field: invoice_amount
+
+Type:
+Decimal(10,2)
+
+Required:
+Yes
+
+Meaning:
+Original amount before discounts.
+
+Validation:
+
+Must be greater than zero.
+
+---
+
+Field: discount_amount
+
+Type:
+Decimal(10,2)
+
+Required:
+No
+
+Default:
+0.00
+
+Meaning:
+Total discount applied to the invoice.
+
+Examples:
+
+* Early payment discount
+* Referral discount
+
+---
+
+Field: final_amount
+
+Type:
+Decimal(10,2)
+
+Required:
+Yes
+
+Meaning:
+Amount payable after applying discounts.
+
+Formula:
+
+final_amount =
+invoice_amount - discount_amount
+
+Validation:
+
+Must be greater than or equal to zero.
+
+---
+
+Field: payment_status
+
+Type:
+String (Enum)
+
+Required:
+Yes
+
+Default:
+Pending
+
+Meaning:
+Current payment state of the invoice.
+
+Allowed Values:
+
+* Pending
+* Paid
+* Overdue
+* Cancelled
+
+---
+
+Field: generated_at
+
+Type:
+DateTime
+
+Required:
+System Generated
+
+Meaning:
+Timestamp when the invoice was generated.
+
+---
+
+Relationships
+
+* One Customer → Many Invoices
+* One Invoice → Many Payments
+
+---
+
+Business Rules
+
+* Monthly subscribers are billed on the first day of each month.
+* Weekly subscribers are billed every Monday.
+* Early payments receive a 10% discount.
+* Referral rewards provide a 5% discount.
+* Discounts are applied before final amount calculation.
+* Historical invoices remain unchanged after plan price modifications.
+* Invoices are generated using the subscription's plan_price_snapshot value.
+
 
 ---
 
@@ -1745,14 +2996,132 @@ Key Fields:
 
 Purpose:
 
-Stores referral relationships between customers.
+Stores customer referral relationships and referral reward eligibility.
 
-Key Fields:
+Reason for Separate Model:
 
-- id
-- referrer_customer_id
-- referred_customer_id
-- reward_applied
+Referral records track referral history independently from billing and customer records to support reward validation and fraud prevention.
+
+---
+
+Field: id
+
+Type:
+Integer
+
+Required:
+System Generated
+
+Meaning:
+Unique identifier for the referral record.
+
+Validation:
+
+Must be unique.
+
+---
+
+Field: referrer_customer_id
+
+Type:
+Integer (Foreign Key)
+
+Required:
+Yes
+
+Meaning:
+Customer who made the referral.
+
+Validation:
+
+Must reference an existing customer.
+
+---
+
+Field: referred_customer_id
+
+Type:
+Integer (Foreign Key)
+
+Required:
+Yes
+
+Meaning:
+Customer who was referred.
+
+Validation:
+
+Must reference an existing customer.
+
+---
+
+Field: referral_status
+
+Type:
+String (Enum)
+
+Required:
+Yes
+
+Default:
+Pending
+
+Meaning:
+Current status of the referral.
+
+Allowed Values:
+
+* Pending
+* Eligible
+* Reward Applied
+* Rejected
+
+---
+
+Field: reward_applied
+
+Type:
+Boolean
+
+Required:
+No
+
+Default:
+False
+
+Meaning:
+Indicates whether the referral reward has been granted.
+
+---
+
+Field: created_at
+
+Type:
+DateTime
+
+Required:
+System Generated
+
+Meaning:
+Timestamp when the referral was created.
+
+---
+
+Relationships
+
+* One Customer → Many Referrals Made
+* One Customer → Many Referrals Received
+
+---
+
+Business Rules
+
+* Customers cannot refer themselves.
+* Referral rewards are granted only after the referred customer completes their first paid month.
+* Referral discounts provide a 5% billing discount.
+* Fraudulent or duplicate referrals may be rejected by administrators.
+* Referral rewards can only be applied once per successful referral.
+
 
 ---
 
@@ -1760,14 +3129,110 @@ Key Fields:
 
 Purpose:
 
-Stores uploaded identity documents.
+Stores identity documents uploaded by customers.
 
-Key Fields:
+Reason for Separate Model:
 
-- id
-- customer_id
-- document_type
-- file_path
+Customer documents are managed independently from customer profiles to support secure storage and multiple document uploads.
+
+---
+
+Field: id
+
+Type:
+Integer
+
+Required:
+System Generated
+
+Meaning:
+Unique identifier for the document record.
+
+Validation:
+
+Must be unique.
+
+---
+
+Field: customer_id
+
+Type:
+Integer (Foreign Key)
+
+Required:
+Yes
+
+Meaning:
+Customer associated with the document.
+
+Validation:
+
+Must reference an existing customer.
+
+---
+
+Field: document_type
+
+Type:
+String (Enum)
+
+Required:
+Yes
+
+Meaning:
+Type of identity document uploaded.
+
+Allowed Values:
+
+* Aadhaar
+* Driving License
+
+---
+
+Field: file_path
+
+Type:
+String
+
+Required:
+Yes
+
+Meaning:
+Storage path of the uploaded document.
+
+Validation:
+
+Cannot be empty.
+
+---
+
+Field: uploaded_at
+
+Type:
+DateTime
+
+Required:
+System Generated
+
+Meaning:
+Timestamp when the document was uploaded.
+
+---
+
+Relationships
+
+* One Customer → Many CustomerDocuments
+
+---
+
+Business Rules
+
+* Document uploads are optional.
+* Unsupported file formats are rejected.
+* Customers may upload multiple documents.
+* Documents should only be accessible to authorized users.
+* Document paths must remain valid even if customer profile information changes.
+
 
 ---
 
@@ -1775,15 +3240,137 @@ Key Fields:
 
 Purpose:
 
-Stores delivery status change history.
+Stores the history of delivery status changes for audit and reporting purposes.
 
-Key Fields:
+Reason for Separate Model:
 
-- id
-- delivery_id
-- old_status
-- new_status
-- changed_at
+Delivery records store only the current status, while DeliveryStatusHistory preserves every status transition.
+
+---
+
+Field: id
+
+Type:
+Integer
+
+Required:
+System Generated
+
+Meaning:
+Unique identifier for the status history record.
+
+Validation:
+
+Must be unique.
+
+---
+
+Field: delivery_id
+
+Type:
+Integer (Foreign Key)
+
+Required:
+Yes
+
+Meaning:
+Delivery associated with the status change.
+
+Validation:
+
+Must reference an existing delivery.
+
+---
+
+Field: old_status
+
+Type:
+String (Enum)
+
+Required:
+Yes
+
+Meaning:
+Previous status of the delivery.
+
+Allowed Values:
+
+* Prepared
+* Out For Delivery
+* Delivered
+* Failed
+* Retry Scheduled
+* Missed
+
+---
+
+Field: new_status
+
+Type:
+String (Enum)
+
+Required:
+Yes
+
+Meaning:
+Updated status of the delivery.
+
+Allowed Values:
+
+* Prepared
+* Out For Delivery
+* Delivered
+* Failed
+* Retry Scheduled
+* Missed
+
+---
+
+Field: changed_at
+
+Type:
+DateTime
+
+Required:
+System Generated
+
+Meaning:
+Timestamp when the status change occurred.
+
+---
+
+Field: changed_by
+
+Type:
+Integer (Foreign Key)
+
+Required:
+Yes
+
+Meaning:
+User who performed the status update.
+
+Validation:
+
+Must reference an existing User record.
+
+---
+
+Relationships
+
+* One Delivery → Many DeliveryStatusHistory records
+* One User → Many DeliveryStatusHistory records
+
+---
+
+Business Rules
+
+* Every delivery status change must be recorded.
+* Status history records are immutable.
+* Administrators may override delivery statuses.
+* Audit trails must remain available for reporting and troubleshooting.
+* Historical status changes are used for delivery analytics.
+
 
 ---
 
@@ -1791,14 +3378,134 @@ Key Fields:
 
 Purpose:
 
-Stores complaint resolution information.
+Stores complaint resolution details and compensation records.
 
-Key Fields:
+Reason for Separate Model:
 
-- id
-- complaint_id
-- resolution_notes
-- compensation_provided
+The Complaint model stores the complaint itself, while ComplaintResolution stores how the complaint was resolved and what compensation was provided.
+
+---
+
+Field: id
+
+Type:
+Integer
+
+Required:
+System Generated
+
+Meaning:
+Unique identifier for the complaint resolution record.
+
+Validation:
+
+Must be unique.
+
+---
+
+Field: complaint_id
+
+Type:
+Integer (Foreign Key)
+
+Required:
+Yes
+
+Meaning:
+Complaint associated with this resolution.
+
+Validation:
+
+Must reference an existing complaint.
+
+---
+
+Field: resolution_notes
+
+Type:
+Text
+
+Required:
+Yes
+
+Meaning:
+Description of the action taken to resolve the complaint.
+
+Validation:
+
+Cannot be empty.
+
+Examples:
+
+* Customer contacted and replacement meal provided.
+* Delivery timing issue explained and compensated.
+
+---
+
+Field: compensation_provided
+
+Type:
+String
+
+Required:
+No
+
+Meaning:
+Compensation granted to the customer.
+
+Examples:
+
+* Free next day's tiffin.
+* 50% discount on next add-on.
+* No compensation.
+
+---
+
+Field: resolved_at
+
+Type:
+DateTime
+
+Required:
+System Generated
+
+Meaning:
+Timestamp when the complaint was resolved.
+
+---
+
+Field: resolved_by
+
+Type:
+Integer (Foreign Key)
+
+Required:
+Yes
+
+Meaning:
+Administrator who resolved the complaint.
+
+Validation:
+
+Must reference an existing User record.
+
+---
+
+Relationships
+
+* One Complaint → One ComplaintResolution
+* One User → Many ComplaintResolution records
+
+---
+
+Business Rules
+
+* Every resolved complaint must have resolution notes.
+* Compensation records must be preserved for reporting.
+* Complaint resolutions are immutable after closure.
+* Resolution information is used in monthly complaint analytics.
+* Closed complaints cannot be modified without administrator permission.
+
 
 ---
 
@@ -1806,14 +3513,116 @@ Key Fields:
 
 Purpose:
 
-Stores payment reminder records.
+Stores records of payment reminders sent to customers.
 
-Key Fields:
+Reason for Separate Model:
 
-- id
-- customer_id
-- reminder_date
-- status
+Payment reminders are stored independently to maintain reminder history and support billing analytics.
+
+---
+
+Field: id
+
+Type:
+Integer
+
+Required:
+System Generated
+
+Meaning:
+Unique identifier for the payment reminder.
+
+Validation:
+
+Must be unique.
+
+---
+
+Field: customer_id
+
+Type:
+Integer (Foreign Key)
+
+Required:
+Yes
+
+Meaning:
+Customer receiving the payment reminder.
+
+Validation:
+
+Must reference an existing customer.
+
+---
+
+Field: reminder_date
+
+Type:
+DateTime
+
+Required:
+System Generated
+
+Meaning:
+Timestamp when the reminder was generated or sent.
+
+---
+
+Field: reminder_type
+
+Type:
+String (Enum)
+
+Required:
+Yes
+
+Meaning:
+Type of reminder sent to the customer.
+
+Allowed Values:
+
+* Upcoming Due Reminder
+* Overdue Reminder
+* Auto-Pause Warning
+
+---
+
+Field: status
+
+Type:
+String (Enum)
+
+Required:
+Yes
+
+Default:
+Sent
+
+Meaning:
+Current state of the reminder.
+
+Allowed Values:
+
+* Pending
+* Sent
+* Failed
+
+---
+
+Relationships
+
+* One Customer → Many PaymentReminders
+
+---
+
+Business Rules
+
+* Payment reminders are generated five days before the due date.
+* Customers with overdue balances exceeding ten days receive auto-pause warnings.
+* Reminder history is retained for audit and reporting purposes.
+* Failed reminder attempts may be retried.
+* Reminder records do not modify invoice or payment data.
+
 
 ---
 
@@ -1821,15 +3630,164 @@ Key Fields:
 
 Purpose:
 
-Stores generated monthly reports.
+Stores generated monthly operational reports and summary statistics.
 
-Key Fields:
+Reason for Separate Model:
 
-- id
-- report_month
-- total_tiffins_served
-- total_revenue
-- total_complaints
+Monthly reports provide historical business insights and preserve reporting snapshots independently of live operational data.
+
+---
+
+Field: id
+
+Type:
+Integer
+
+Required:
+System Generated
+
+Meaning:
+Unique identifier for the monthly report.
+
+Validation:
+
+Must be unique.
+
+---
+
+Field: report_month
+
+Type:
+String
+
+Required:
+Yes
+
+Meaning:
+Month and year covered by the report.
+
+Examples:
+
+* June 2026
+* July 2026
+
+Validation:
+
+Cannot be empty.
+
+---
+
+Field: total_tiffins_served
+
+Type:
+Integer
+
+Required:
+Yes
+
+Meaning:
+Total number of tiffins delivered during the reporting period.
+
+Validation:
+
+Must be greater than or equal to zero.
+
+---
+
+Field: total_revenue
+
+Type:
+Decimal(10,2)
+
+Required:
+Yes
+
+Meaning:
+Total revenue generated during the reporting period.
+
+Validation:
+
+Must be greater than or equal to zero.
+
+---
+
+Field: total_complaints
+
+Type:
+Integer
+
+Required:
+Yes
+
+Meaning:
+Number of complaints registered during the reporting period.
+
+Validation:
+
+Must be greater than or equal to zero.
+
+---
+
+Field: total_pause_requests
+
+Type:
+Integer
+
+Required:
+Yes
+
+Meaning:
+Number of subscription pauses recorded during the reporting period.
+
+Validation:
+
+Must be greater than or equal to zero.
+
+---
+
+Field: top_delivery_boy_id
+
+Type:
+Integer (Foreign Key)
+
+Required:
+No
+
+Meaning:
+Delivery personnel with the highest successful delivery count.
+
+---
+
+Field: generated_at
+
+Type:
+DateTime
+
+Required:
+System Generated
+
+Meaning:
+Timestamp when the report was generated.
+
+---
+
+Relationships
+
+* Monthly reports aggregate information from Deliveries, Payments, Complaints, and PauseRequests.
+* One Delivery Boy may appear in many monthly reports.
+
+---
+
+Business Rules
+
+* Reports are generated once per month.
+* Reports use finalized operational data.
+* Historical reports remain immutable after generation.
+* Revenue statistics use invoice and payment records.
+* Complaint statistics use complaint and complaint resolution records.
+* Pause statistics are calculated from PauseRequest history.
+* Delivery performance metrics are calculated from delivery records.
+
 
 ## 11.4 Schema Layer
 
