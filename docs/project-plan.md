@@ -115,6 +115,53 @@ Permissions:
 * Access only own subscriptions.
 * Access only own complaints and bills.
 
+## 3.4 gi Developer Quick Start Guide
+
+Purpose:
+
+This section provides an onboarding path for new contributors. A developer should be able to understand the architecture and start implementing features within approximately 30 minutes.
+
+Recommended Reading Order:
+
+### Step 1: Functional Requirements
+
+Read Section 4 to understand:
+
+* Subscription plans
+* Pause rules
+* Delivery workflow
+* Complaint SLA rules
+* Billing cycles
+* Add-on cutoff timings
+
+### Step 2: Folder Structure
+
+Read Section 11.1 to understand project organization and module responsibilities.
+
+### Step 3: Models Layer
+
+Read Section 11.3 to understand:
+
+* Entities
+* Relationships
+* Field definitions
+* Source-of-truth decisions
+
+### Step 4: Services Layer
+
+Read Section 11.5 to understand business logic responsibilities.
+
+### Step 5: Definition of Done
+
+Read Section 13 to understand V1 acceptance criteria and testable conditions.
+
+Recommended onboarding path:
+
+Functional Requirements → Folder Structure → Models Layer → Services Layer → Definition of Done
+
+Following these sections should make a new contributor productive within approximately 30 minutes.
+
+
 ## 4. Functional Requirements
 
 ### 4.1 Customer Management
