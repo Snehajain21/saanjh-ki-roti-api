@@ -115,7 +115,7 @@ Permissions:
 * Access only own subscriptions.
 * Access only own complaints and bills.
 
-## 3.4 gi Developer Quick Start Guide
+## 3.4  Developer Quick Start Guide
 
 Purpose:
 
@@ -1772,6 +1772,38 @@ Current subscription state.
 
 ---
 
+---
+
+Field: pause_reason
+
+Type:
+String (Enum)
+
+Required:
+No
+
+Meaning:
+Stores the reason for a paused subscription.
+
+Allowed Values:
+
+* Customer Request
+* Payment Overdue
+
+Default:
+
+None
+
+Business Usage:
+
+Used to distinguish customer-initiated pauses from automatic pauses caused by overdue payments.
+
+Validation:
+
+Can only contain a value when status = Paused.  
+
+---
+
 Pause Tracking Design
 
 Authoritative Source:
@@ -1827,9 +1859,15 @@ Revenue calculations and invoice generation use plan_price_snapshot rather than 
 
 Validations:
 
+Validations:
+
 * One active subscription per customer.
 * End date must be greater than start date.
 * Pause limit cannot be negative.
+* Customer-requested pauses are recorded with pause_reason = Customer Request.
+* Automatic payment suspensions are recorded with pause_reason = Payment Overdue.
+* Subscriptions paused due to overdue payments are automatically reactivated when dues are cleared.
+* Customer-requested pauses remain paused until the approved pause period ends.
 
 ### route.py
 
@@ -1987,6 +2025,37 @@ Validation:
 Must reference an existing route.
 
 ---
+---
+
+Field: meal_slot
+
+Type:
+String (Enum)
+
+Required:
+Yes
+
+Meaning:
+Indicates which meal this delivery record represents.
+
+Allowed Values:
+
+* Lunch
+* Dinner
+
+Examples:
+
+* Lunch
+* Dinner
+
+Validation:
+
+Must contain one of the supported meal slots.
+
+Business Usage:
+
+Used to distinguish lunch and dinner deliveries for customers whose plans include multiple meals per day.
+--- 
 
 Field: status
 
@@ -2082,6 +2151,10 @@ Business Rules
 * Retry deliveries are scheduled for 8:00 PM.
 * Delivered deliveries cannot be modified without administrator action.
 * Delivery status transitions must follow the defined workflow.
+* Monthly Veg customers receive one Lunch delivery record per working day.
+* Monthly Premium customers receive separate Lunch and Dinner delivery records.
+* Weekly Saver customers receive separate Lunch and Dinner delivery records.
+* Delivery status and retry attempts are tracked independently for each meal slot.
 
 Status Flow:
 
@@ -4011,6 +4084,49 @@ Responsibilities:
 
 ---
 
+### meal_planner_service.py
+
+Purpose:
+
+Generates daily meal preparation summaries for kitchen operations.
+
+Responsibilities:
+
+* Calculate total tiffins required for a given day.
+* Group meal counts by diet type.
+* Exclude paused subscriptions.
+* Exclude cancelled subscriptions.
+* Account for Lunch and Dinner meal slots.
+* Generate the 5:30 AM kitchen preparation summary.
+
+Functions:
+
+generate_daily_meal_summary()
+
+Purpose:
+
+Calculates the number of meals that need to be prepared for the day.
+
+Returns:
+
+* Total tiffins.
+* Veg meal count.
+* Non-Veg meal count.
+* Jain meal count.
+* Diabetic meal count.
+
+generate_meal_count_by_diet()
+
+Purpose:
+
+Groups active deliveries according to diet type.
+
+Returns:
+
+Dictionary containing meal counts by category.
+
+---
+
 ### payment_service.py
 
 Functions:
@@ -4145,6 +4261,24 @@ Endpoints:
 * GET /reports/dashboard
 
 ---
+### addons.py
+
+Responsibilities:
+
+• List available add-ons.
+• Create new add-ons.
+• Update add-on availability.
+• Disable inactive add-ons.
+
+### addon_orders.py
+
+Responsibilities:
+
+• Place add-on orders.
+• Validate 9:00 AM cutoff.
+• Retrieve customer add-on history.
+• Calculate add-on revenue.
+• Cancel pending add-on orders.
 
 ## 11.7 Validation Strategy
 
@@ -4224,79 +4358,93 @@ The V1 release will be considered complete only when all of the following condit
 
 8. Pause requests exceeding seven days per billing cycle are rejected.
 
-9. Subscription pricing remains unchanged after a plan price update due to the stored plan_price_snapshot value.
+9. Subscriptions auto-paused due to overdue payments are automatically reactivated after dues are cleared.
+
+10. Subscription pricing remains unchanged after a plan price update due to the stored plan_price_snapshot value.
 
 ---
 
 ### 13.3 Delivery Management
 
-10. Daily deliveries can be generated automatically for active subscriptions.
+11. Daily deliveries can be generated automatically for active subscriptions.
 
-11. Delivery status can transition from Prepared → Out For Delivery → Delivered.
+12. Customers with Lunch and Dinner plans generate separate delivery records for each meal slot.
 
-12. Failed deliveries require a failure reason.
+13. Delivery status can transition from Prepared → Out For Delivery → Delivered.
 
-13. Failed deliveries can be retried once.
+14. Failed deliveries require a failure reason.
 
-14. Delivery personnel can only view deliveries assigned to their route.
+15. Failed deliveries can be retried once.
+
+16. Delivery personnel can only view deliveries assigned to their route.
+  
+    Daily meal preparation summary correctly calculates Veg, Non-Veg, Jain, and Diabetic meal counts for active subscriptions.
 
 ---
 
 ### 13.4 Billing and Payments
 
-15. Invoices can be generated for active subscriptions.
+17. Invoices can be generated for active subscriptions.
 
-16. Payment records can be created using Cash, UPI, or Khaata.
+18. Payment records can be created using Cash, UPI, or Khaata.
 
-17. Early-payment discounts are applied correctly.
+19. Early-payment discounts are applied correctly.
 
-18. Referral discounts are applied only after referral eligibility requirements are met.
+20. Referral discounts are applied only after referral eligibility requirements are met.
 
-19. Payment reminders can be generated for upcoming due dates.
+21. Payment reminders are generated exactly five days before the payment due date.
+
+22. Subscriptions with unpaid dues exceeding ten days are automatically paused and marked with pause_reason = Payment Overdue.
+
+23. POST /addon-orders successfully creates a same-day add-on order before 09:00 AM and returns HTTP 201.
+
+24. POST /addon-orders for same-day delivery after 09:00 AM returns HTTP 400 with an appropriate validation message.
 
 ---
 
 ### 13.5 Complaint Management
 
-20. POST /complaints creates a complaint successfully.
+25. POST /complaints creates a complaint successfully.
 
-21. Complaint severity automatically generates the correct resolution deadline.
+26. Complaint severity automatically generates the correct resolution deadline.
 
-22. Low severity complaints receive a 48-hour deadline.
+27. Low severity complaints receive a 48-hour deadline.
 
-23. Medium severity complaints receive a 24-hour deadline.
+28. Medium severity complaints receive a 24-hour deadline.
 
-24. High severity complaints receive a 6-hour deadline.
+29. High severity complaints receive a 6-hour deadline.
 
-25. Overdue complaints are identified correctly by the system.
+30. Overdue complaints are identified correctly by the system.
 
 ---
 
 ### 13.6 Reporting and Dashboard
 
-26. Monthly reports can be generated through the reporting module.
+31. Monthly reports can be generated through the reporting module.
 
-27. Reports include revenue, complaints, pause statistics, and delivery statistics.
+32. Reports include revenue, complaints, pause statistics, and delivery statistics.
 
-28. Dashboard endpoint returns daily operational metrics.
+33. Dashboard endpoint returns daily operational metrics.
 
-29. Dashboard displays delivery counts grouped by status.
+34. Dashboard displays delivery counts grouped by status.
 
-30. Dashboard displays route-wise delivery statistics.
+35. Dashboard displays route-wise delivery statistics.
 
 ---
 
 ### 13.7 API Quality
 
-31. All APIs appear in FastAPI OpenAPI documentation.
+36. All APIs appear in FastAPI OpenAPI documentation.
 
-32. Request validation errors return HTTP 422.
+37. Request validation errors return HTTP 422.
 
-33. Unauthorized access returns HTTP 401.
+38. Unauthorized access returns HTTP 401.
 
-34. Forbidden role access returns HTTP 403.
+39. Forbidden role access returns HTTP 403.
 
-35. Automated test suite passes successfully before release.
+40. Automated test suite passes successfully before release.
+
+
 
 ---
 
