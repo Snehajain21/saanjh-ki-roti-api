@@ -4261,24 +4261,80 @@ Endpoints:
 * GET /reports/dashboard
 
 ---
-### addons.py
+### addon.py
 
-Responsibilities:
+Endpoints:
 
-• List available add-ons.
-• Create new add-ons.
-• Update add-on availability.
-• Disable inactive add-ons.
+GET /addons
 
-### addon_orders.py
+Purpose:
 
-Responsibilities:
+Returns all available add-ons.
 
-• Place add-on orders.
-• Validate 9:00 AM cutoff.
-• Retrieve customer add-on history.
-• Calculate add-on revenue.
-• Cancel pending add-on orders.
+---
+
+POST /addons
+
+Purpose:
+
+Creates a new add-on.
+
+---
+
+PUT /addons/{id}
+
+Purpose:
+
+Updates add-on information and availability.
+
+---
+
+DELETE /addons/{id}
+
+Purpose:
+
+Disables an add-on without removing historical records.
+
+
+### addon_order.py
+
+Endpoints:
+
+POST /addon-orders
+
+Purpose:
+
+Creates a customer add-on order.
+
+Validations:
+
+* Same-day add-on orders are accepted only before 09:00 AM.
+* Requests after 09:00 AM return HTTP 400.
+
+---
+
+GET /addon-orders/customer/{customer_id}
+
+Purpose:
+
+Returns add-on order history for a customer.
+
+---
+
+DELETE /addon-orders/{id}
+
+Purpose:
+
+Cancels pending add-on orders.
+
+---
+
+GET /addon-orders/revenue
+
+Purpose:
+
+Returns add-on revenue statistics.
+--- 
 
 ## 11.7 Validation Strategy
 
