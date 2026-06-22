@@ -345,12 +345,43 @@ Responsibilities:
 
 Purpose:
 
-Authentication tests.
+Authentication endpoint tests.
 
-Responsibilities:
+Functions:
 
-* Registration tests.
-* Login tests.
+test_register_user()
+
+Purpose:
+
+Verify successful user registration.
+
+Steps:
+
+* Send POST /auth/register request.
+* Verify HTTP 201 response.
+* Verify user record creation.
+
+Expected Result:
+
+User is registered successfully.
+
+---
+
+test_login_user()
+
+Purpose:
+
+Verify login and JWT generation.
+
+Steps:
+
+* Send POST /auth/login request using OAuth2PasswordRequestForm.
+* Verify HTTP 200 response.
+* Verify access_token exists.
+
+Expected Result:
+
+JWT token is returned.
 
 ---
 
@@ -358,12 +389,42 @@ Responsibilities:
 
 Purpose:
 
-Plan API tests.
+Plan endpoint tests.
 
-Responsibilities:
+Functions:
 
-* Plan creation tests.
-* Plan retrieval tests.
+test_create_plan()
+
+Purpose:
+
+Verify plan creation.
+
+Steps:
+
+* Send POST /plans request.
+* Verify HTTP 201 response.
+
+Expected Result:
+
+Plan record is created.
+
+---
+
+test_get_all_plans()
+
+Purpose:
+
+Verify plan retrieval.
+
+Steps:
+
+* Send GET /plans request.
+* Verify HTTP 200 response.
+
+Expected Result:
+
+List of plans is returned.
+
 
 ---
 
@@ -373,9 +434,25 @@ Purpose:
 
 Health endpoint tests.
 
-Responsibilities:
+Functions:
 
-* Health endpoint validation.
+test_health_endpoint()
+
+Purpose:
+
+Verify application health endpoint.
+
+Steps:
+
+* Send GET /health request.
+* Verify HTTP 200 response.
+* Verify response contains status = healthy.
+
+Expected Result:
+
+Health endpoint returns healthy status.
+
+
 ## 5. Detailed File Implementation Plan
 
 ### 5.1 database.py
@@ -573,12 +650,41 @@ Returns:
 
 String
 
+Implementation Details:
+
+Library:
+
+python-jose
+
+Algorithm:
+
+HS256
+
+JWT Claims:
+
+sub
+
+Meaning:
+
+Stores user email.
+
+role
+
+Meaning:
+
+Stores user role.
+
+exp
+
+Meaning:
+
+Stores token expiration timestamp.
+
 Responsibilities:
 
-* Create JWT payload.
+* Create JWT payload containing sub, role, and exp claims.
 * Add expiration timestamp.
-* Encode token.
-
+* Encode token using python-jose and the HS256 algorithm.
 ---
 
 #### decode_access_token(token)
@@ -601,9 +707,13 @@ Dictionary
 
 Responsibilities:
 
-* Decode JWT.
-* Validate token expiry.
-* Extract user information.
+* Decode JWT using python-jose.
+* Validate HS256 signature.
+* Validate expiration timestamp.
+* Extract sub claim.
+* Extract role claim.
+* Return decoded payload.
+
 
 ---
 
@@ -641,6 +751,36 @@ Responsibilities:
 * Fetch user from database.
 * Validate user existence.
 * Raise HTTP 401 if token is invalid.
+* Read sub claim to identify the user.
+* Read role claim for authorization decisions.
+
+---
+
+#### get_current_admin()
+
+Purpose:
+
+Restricts endpoints to administrator users.
+
+Parameters:
+
+current_user
+
+Type:
+
+User
+
+Returns:
+
+User
+
+Responsibilities:
+
+* Retrieve current user from get_current_user().
+* Verify that role = ADMIN.
+* Allow access to administrator endpoints.
+* Raise HTTP 403 if the authenticated user is not an administrator.
+
 ### 5.5 models/user.py
 
 Purpose:
@@ -862,14 +1002,37 @@ Purpose:
 
 Authentication schemas.
 
-Classes:
+Authentication Input
 
-LoginRequest
+Login uses FastAPI's OAuth2PasswordRequestForm.
 
 Fields:
 
-* email
+* username
 * password
+
+Meaning:
+
+Credentials are submitted as form data rather than JSON request bodies.
+
+Reasoning:
+
+Using OAuth2PasswordRequestForm keeps the API compatible with Swagger UI's Authorize button and supports dependency composition with OAuth2PasswordBearer for protected endpoints.
+
+---
+
+TokenResponse
+
+Fields:
+
+* access_token
+* token_type
+
+Responsibilities:
+
+* Login request validation.
+* JWT response formatting.
+
 
 ---
 
@@ -994,15 +1157,23 @@ Generates JWT token.
 
 Parameters:
 
-email
+username
 
 Type:
 String
+
+Meaning:
+
+User email submitted through OAuth2PasswordRequestForm.
 
 password
 
 Type:
 String
+
+Meaning:
+
+User password submitted through OAuth2PasswordRequestForm.
 
 Returns:
 
@@ -1012,6 +1183,7 @@ Responsibilities:
 
 * Authenticate user.
 * Generate access token.
+
 
 ---
 
@@ -1046,6 +1218,7 @@ Responsibilities:
 
 * Validate request.
 * Save plan.
+* Only administrators are permitted to create plans.
 
 ---
 
@@ -1119,20 +1292,50 @@ HTTP 200
 
 ---
 
-POST /plans
+### POST /plans
 
 Purpose:
 
-Create new plan.
+Create meal plan.
 
-Returns:
+Authorization:
+
+Requires administrator access.
+
+Dependency Chain:
+
+OAuth2PasswordBearer
+
+↓
+
+get_current_user()
+
+↓
+
+get_current_admin()
+
+↓
+
+POST /plans
+
+Success Response:
 
 HTTP 201
 
-Responsibilities:
+Failure Responses:
 
-* Plan creation.
-* Plan retrieval.
+HTTP 401
+
+Unauthorized request.
+
+HTTP 403
+
+Non-admin user.
+
+HTTP 422
+
+Validation error.
+
 
 ---
 
@@ -1345,9 +1548,13 @@ Purpose:
 
 Authenticate user.
 
-Request:
+Request Type:
 
-* email
+OAuth2PasswordRequestForm
+
+Fields:
+
+* username
 * password
 
 Success Response:
@@ -1454,14 +1661,19 @@ Phase 1 is complete only when all conditions below are satisfied.
 
 16. POST /plans creates plans successfully.
 
-17. GET /plans returns available plans.
+17. Customer users attempting POST /plans receive HTTP 403.
 
-18. Request validation errors return HTTP 422.
+18. Administrator users can successfully create plans.
 
-19. Swagger UI displays all endpoints.
 
-20. Automated tests pass successfully before merge.
+19. GET /plans returns available plans.
 
-21. OpenAPI schema generation succeeds.
+20. Request validation errors return HTTP 422.
 
-22. All Phase 1 endpoints are accessible through Swagger UI.
+21. Swagger UI displays all endpoints.
+
+22. Automated tests pass successfully before merge.
+
+23. OpenAPI schema generation succeeds.
+
+24. All Phase 1 endpoints are accessible through Swagger UI.
