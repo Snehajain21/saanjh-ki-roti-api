@@ -2,6 +2,10 @@ from sqlmodel import Session, select
 
 from app.models.user import User, UserRole
 from app.schemas.user import UserCreate
+from fastapi import HTTPException
+from sqlalchemy.exc import IntegrityError
+from app.schemas.auth import Token
+from app.core.security import create_access_token
 from app.core.security import (
     hash_password,
     verify_password,
@@ -25,8 +29,18 @@ def register_user(
     )
 
     session.add(user)
-    session.commit()
-    session.refresh(user)
+
+    try:
+        session.commit()
+        session.refresh(user)
+
+    except IntegrityError:
+        session.rollback()
+
+        raise HTTPException(
+            status_code=409,
+            detail="Email already exists"
+        )
 
     return user
 
@@ -53,3 +67,31 @@ def authenticate_user(
         return None
 
     return user
+
+def login_user(
+    username: str,
+    password: str,
+    session: Session
+) -> Token:
+
+    user = authenticate_user(
+        username,
+        password,
+        session
+    )
+
+    if user is None:
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid credentials"
+        )
+
+    access_token = create_access_token(
+        user.id,
+        user.role
+    )
+
+    return Token(
+        access_token=access_token,
+        token_type="bearer"
+    )

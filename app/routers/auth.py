@@ -11,8 +11,10 @@ from app.services.auth_service import (
     register_user,
     authenticate_user
 )
-from app.core.security import create_access_token
-
+from app.services.auth_service import (
+    register_user,
+    login_user
+)
 router = APIRouter(
     prefix="/auth",
     tags=["Authentication"]
@@ -45,24 +47,8 @@ def login(
     ]
 ):
 
-    user = authenticate_user(
-        form_data.username,
-        form_data.password,
-        session
-    )
-
-    if user is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid credentials"
-        )
-
-    access_token = create_access_token(
-        user.id,
-        user.role
-    )
-
-    return Token(
-    access_token=access_token,
-    token_type="bearer"
+    return login_user(
+    form_data.username,
+    form_data.password,
+    session
 )
