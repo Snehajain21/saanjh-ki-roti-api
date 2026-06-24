@@ -16,7 +16,6 @@ def create_plan(
         diet_types=plan_data.diet_types,
         billing_cycle=plan_data.billing_cycle
     )
-
     session.add(plan)
     session.commit()
     session.refresh(plan)

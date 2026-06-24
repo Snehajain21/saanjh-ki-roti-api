@@ -39,10 +39,9 @@ def create_access_token(
     ) + timedelta(
         minutes=ACCESS_TOKEN_EXPIRE_MINUTES
     )
-
     payload = {
         "sub": str(user_id),
-        "role": role,
+        "role": role.value if hasattr(role, "value") else role,
         "exp": expire
     }
 
