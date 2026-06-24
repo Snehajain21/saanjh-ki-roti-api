@@ -1,6 +1,6 @@
 from sqlmodel import Session, select
 
-from app.models.user import User
+from app.models.user import User, UserRole
 from app.schemas.user import UserCreate
 from app.core.security import (
     hash_password,
@@ -21,7 +21,7 @@ def register_user(
         name=user_data.name,
         email=user_data.email,
         password_hash=hashed_password,
-        role=user_data.role
+        role=UserRole.CUSTOMER
     )
 
     session.add(user)

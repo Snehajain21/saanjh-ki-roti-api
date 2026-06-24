@@ -13,7 +13,6 @@ class UserCreate(SQLModel):
     name: str
     email: EmailStr
     password: str
-    role: UserRole
 
 
 class UserRead(SQLModel):

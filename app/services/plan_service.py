@@ -13,7 +13,7 @@ def create_plan(
         name=plan_data.name,
         price=plan_data.price,
         meal_type=plan_data.meal_type,
-        diet_type=plan_data.diet_type,
+        diet_types=plan_data.diet_types,
         billing_cycle=plan_data.billing_cycle
     )
 
